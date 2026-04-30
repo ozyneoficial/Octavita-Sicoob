@@ -173,12 +173,12 @@ app.post('/boleto', authMiddleware, async (req, res) => {
 
     res.json({
       sucesso: true,
-      nossoNumero: boleto.nossoNumero || boleto.numeroNossoNumero,
-      linhaDigitavel: boleto.linhaDigitavel || boleto.numeroLinhaDigitavel,
-      codigoBarras: boleto.codigoBarras || boleto.numeroCodigoBarras,
+      nossoNumero: boleto.nossoNumero,
+      linhaDigitavel: boleto.linhaDigitavel,
+      codigoBarras: boleto.codigoBarras,
       urlBoleto: boleto.urlBoleto || null,
       dataVencimento: boleto.dataVencimento,
-      valor: boleto.valor || boleto.valorNominal,
+      valor: boleto.valor,
     });
   } catch (err) {
     console.error('Erro:', JSON.stringify(err.response?.data || err.message));
