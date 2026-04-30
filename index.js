@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const SICOOB_CLIENT_ID = 'a698a074-065f-4653-9c47-764d56dbe957';
+const SICOOB_CLIENT_ID = '93faa2d0-3bfd-48ed-aa21-f3d6a966a000';
 const SICOOB_CODIGO_BENEFICIARIO = 1319914;
 
 const CERT_PEM = `-----BEGIN CERTIFICATE-----
@@ -83,7 +83,7 @@ hTHWFlRQervzreutYE/BT/XF
 const TOKEN_URL = 'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
 const COBRANCA_URL = 'https://api.sicoob.com.br/cobranca-bancaria/v3/boletos';
 
-console.log('STARTUP OK');
+console.log('STARTUP OK - novo client_id');
 
 function getMtlsAgent() {
   return new https.Agent({
@@ -158,7 +158,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       valor: boleto.valorNominal || boleto.valorOriginal,
     });
   } catch (err) {
-    console.error('Erro completo:', JSON.stringify(err.response?.data || err.message));
+    console.error('Erro:', JSON.stringify(err.response?.data || err.message));
     res.status(500).json({ sucesso: false, erro: err.response?.data || err.message });
   }
 });
