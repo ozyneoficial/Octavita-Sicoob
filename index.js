@@ -147,7 +147,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
         email: emailDevedor || '',
       },
       mensagensInstrucao: [
-        descricao || 'Pedido ' + numeroSeuPedido,
+        (descricao || 'Pedido ' + numeroSeuPedido).substring(0, 40),
       ],
       numeroParcela: 1,
       tipoJurosMora: 3,
