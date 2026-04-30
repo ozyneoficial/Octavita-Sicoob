@@ -11,6 +11,7 @@ const SICOOB_CLIENT_ID = '93faa2d0-3bfd-48ed-aa21-f3d6a966a000';
 const SICOOB_NUMERO_CLIENTE = 1319914;
 const SICOOB_NUMERO_CONTRATO = 1261509;
 const SICOOB_NUMERO_CONTA = 707732;
+const SICOOB_SCOPES = 'boletos_inclusao boletos_consulta boletos_alteracao webhooks_alteracao webhooks_consulta webhooks_inclusao';
 
 const CERT_PEM = `-----BEGIN CERTIFICATE-----
 MIIHRDCCBSygAwIBAgIIVCImAyRqtu4wDQYJKoZIhvcNAQELBQAwWTELMAkGA1UE
@@ -98,7 +99,11 @@ function getMtlsAgent() {
 async function getAccessToken() {
   const agent = getMtlsAgent();
   const response = await axios.post(TOKEN_URL,
-    qs.stringify({ grant_type: 'client_credentials', client_id: SICOOB_CLIENT_ID }),
+    qs.stringify({ 
+      grant_type: 'client_credentials', 
+      client_id: SICOOB_CLIENT_ID,
+      scope: SICOOB_SCOPES,
+    }),
     { httpsAgent: agent, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
   );
   console.log('Token scope:', response.data.scope);
