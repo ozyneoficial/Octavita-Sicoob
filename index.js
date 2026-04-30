@@ -149,6 +149,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       mensagensInstrucao: [
         descricao || 'Pedido ' + numeroSeuPedido,
       ],
+      numeroParcela: 1,
       gerarPdf: false,
       numeroContratoCobranca: SICOOB_NUMERO_CONTRATO,
     };
