@@ -96,10 +96,11 @@ function getMtlsAgent() {
 async function getAccessToken() {
   const agent = getMtlsAgent();
   const response = await axios.post(TOKEN_URL,
-    qs.stringify({ grant_type: 'client_credentials', client_id: SICOOB_CLIENT_ID, scope: 'cobranca_bancaria.boleto.inclusao' }),
+    qs.stringify({ grant_type: 'client_credentials', client_id: SICOOB_CLIENT_ID }),
     { httpsAgent: agent, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
   );
   console.log('Token scope:', response.data.scope);
+  console.log('Token obtido com sucesso!');
   return response.data.access_token;
 }
 
@@ -113,7 +114,6 @@ app.post('/boleto', authMiddleware, async (req, res) => {
     console.log('Gerando boleto V3 para:', nomeDevedor, 'valor:', valorOriginal);
 
     const token = await getAccessToken();
-    console.log('Token obtido!');
     const agent = getMtlsAgent();
     const cpfLimpo = (cpfCnpjDevedor || '').replace(/\D/g, '') || '00000000191';
 
