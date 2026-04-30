@@ -15,7 +15,14 @@ const SICOOB_CODIGO_BENEFICIARIO = process.env.SICOOB_CODIGO_BENEFICIARIO || '13
 const TOKEN_URL = 'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
 const COBRANCA_URL = 'https://api.sicoob.com.br/cobranca-bancaria/v2/boletos';
 
+console.log('=== STARTUP ===');
+console.log('SICOOB_CLIENT_ID:', SICOOB_CLIENT_ID ? 'OK' : 'UNDEFINED');
+console.log('SICOOB_CERT_PEM:', SICOOB_CERT_PEM ? 'OK (len=' + SICOOB_CERT_PEM.length + ')' : 'UNDEFINED');
+console.log('API_SECRET_KEY:', process.env.API_SECRET_KEY ? 'OK' : 'UNDEFINED');
+console.log('===============');
+
 function getMtlsAgent() {
+  if (!SICOOB_CERT_PEM) throw new Error('SICOOB_CERT_PEM não definido');
   const cert = SICOOB_CERT_PEM.replace(/\\n/g, '\n');
   return new https.Agent({ cert, key: cert, rejectUnauthorized: true });
 }
@@ -35,21 +42,11 @@ function authMiddleware(req, res, next) {
 
 app.post('/boleto', authMiddleware, async (req, res) => {
   try {
-    const {
-      numeroSeuPedido,
-      valorOriginal,
-      dataVencimento,
-      nomeDevedor,
-      cpfCnpjDevedor,
-      emailDevedor,
-      descricao,
-    } = req.body;
-
+    const { numeroSeuPedido, valorOriginal, dataVencimento, nomeDevedor, cpfCnpjDevedor, emailDevedor, descricao } = req.body;
     console.log('Gerando boleto para:', nomeDevedor, 'valor:', valorOriginal);
 
     const token = await getAccessToken();
     const agent = getMtlsAgent();
-
     const cpfLimpo = (cpfCnpjDevedor || '').replace(/\D/g, '') || '00000000000';
 
     const payload = {
@@ -67,9 +64,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
         cpfCnpj: cpfLimpo,
         email: emailDevedor || '',
       },
-      mensagensInstrucao: {
-        mensagem1: descricao || 'Pagamento referente ao pedido ' + numeroSeuPedido,
-      },
+      mensagensInstrucao: { mensagem1: descricao || 'Pedido ' + numeroSeuPedido },
     };
 
     const response = await axios.post(COBRANCA_URL, payload, {
@@ -78,7 +73,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
     });
 
     const boleto = response.data.resultado;
-    console.log('Boleto gerado com sucesso:', boleto.nossoNumero);
+    console.log('Boleto gerado:', boleto.nossoNumero);
 
     res.json({
       sucesso: true,
@@ -89,13 +84,9 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       dataVencimento: boleto.dataVencimento,
       valor: boleto.valorOriginal,
     });
-
   } catch (err) {
     console.error('Erro ao gerar boleto:', err.response?.data || err.message);
-    res.status(500).json({
-      sucesso: false,
-      erro: err.response?.data || err.message,
-    });
+    res.status(500).json({ sucesso: false, erro: err.response?.data || err.message });
   }
 });
 
