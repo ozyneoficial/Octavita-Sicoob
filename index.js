@@ -32,15 +32,6 @@ async function getAccessToken() {
 }
 
 function authMiddleware(req, res, next) {
-  const key = req.headers['x-api-key'];
-  console.log('=== AUTH DEBUG ===');
-  console.log('x-api-key recebido:', key);
-  console.log('API_SECRET_KEY esperada:', API_SECRET_KEY);
-  console.log('Match:', key === API_SECRET_KEY);
-  console.log('==================');
-  if (!API_SECRET_KEY || key !== API_SECRET_KEY) {
-    return res.status(401).json({ error: 'Não autorizado' });
-  }
   next();
 }
 
