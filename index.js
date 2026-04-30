@@ -83,7 +83,7 @@ hTHWFlRQervzreutYE/BT/XF
 const TOKEN_URL = 'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
 const COBRANCA_URL = 'https://api.sicoob.com.br/cobranca-bancaria/v3/boletos';
 
-console.log('STARTUP: CERT len=' + CERT_PEM.length + ' KEY len=' + KEY_PEM.length);
+console.log('STARTUP OK');
 
 function getMtlsAgent() {
   return new https.Agent({
@@ -100,7 +100,6 @@ async function getAccessToken() {
     { httpsAgent: agent, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
   );
   console.log('Token scope:', response.data.scope);
-  console.log('Token obtido com sucesso!');
   return response.data.access_token;
 }
 
@@ -111,7 +110,7 @@ function authMiddleware(req, res, next) {
 app.post('/boleto', authMiddleware, async (req, res) => {
   try {
     const { numeroSeuPedido, valorOriginal, dataVencimento, nomeDevedor, cpfCnpjDevedor, emailDevedor, descricao } = req.body;
-    console.log('Gerando boleto V3 para:', nomeDevedor, 'valor:', valorOriginal);
+    console.log('Gerando boleto para:', nomeDevedor, 'valor:', valorOriginal);
 
     const token = await getAccessToken();
     const agent = getMtlsAgent();
@@ -146,7 +145,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       },
     });
 
-    console.log('Resposta Sicoob:', JSON.stringify(response.data));
+    console.log('Resposta:', JSON.stringify(response.data));
     const boleto = response.data.resultado || response.data;
 
     res.json({
@@ -159,7 +158,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       valor: boleto.valorNominal || boleto.valorOriginal,
     });
   } catch (err) {
-    console.error('Erro:', err.response?.data || err.message);
+    console.error('Erro completo:', JSON.stringify(err.response?.data || err.message));
     res.status(500).json({ sucesso: false, erro: err.response?.data || err.message });
   }
 });
