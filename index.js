@@ -18,8 +18,7 @@ const COBRANCA_URL = 'https://api.sicoob.com.br/cobranca-bancaria/v2/boletos';
 console.log('STARTUP: CERT len=' + SICOOB_CERT_PEM.length);
 
 function getMtlsAgent() {
-  const cert = SICOOB_CERT_PEM.replace(/\n/g, '
-');
+  const cert = SICOOB_CERT_PEM.replace(/\\n/g, '\n');
   return new https.Agent({ cert, key: cert, rejectUnauthorized: true });
 }
 
