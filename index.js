@@ -7,10 +7,10 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const SICOOB_CLIENT_ID = process.env.SICOOB_CLIENT_ID;
-const SICOOB_CERT_PEM  = process.env.SICOOB_CERT_PEM;
+const SICOOB_CLIENT_ID = process.env.SICOOB_CLIENT_ID || 'a698a074-065f-4653-9c47-764d56dbe957';
 const SICOOB_NUMERO_COOPERATIVA = process.env.SICOOB_NUMERO_COOPERATIVA || '3055';
 const SICOOB_CODIGO_BENEFICIARIO = process.env.SICOOB_CODIGO_BENEFICIARIO || '1319914';
+const SICOOB_CERT_PEM = process.env.SICOOB_CERT_PEM;
 
 const TOKEN_URL = 'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
 const COBRANCA_URL = 'https://api.sicoob.com.br/cobranca-bancaria/v2/boletos';
