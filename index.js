@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const SICOOB_CLIENT_ID = '93faa2d0-3bfd-48ed-aa21-f3d6a966a000';
-const SICOOB_NUMERO_CLIENTE = 1319914;
+const SICOOB_CODIGO_BENEFICIARIO = 1319914;
 const SICOOB_NUMERO_CONTRATO = 1261509;
 const SICOOB_NUMERO_CONTA = 707732;
 const SICOOB_SCOPES = 'boletos_inclusao boletos_consulta boletos_alteracao webhooks_alteracao webhooks_consulta webhooks_inclusao';
@@ -86,6 +86,9 @@ hTHWFlRQervzreutYE/BT/XF
 const TOKEN_URL = 'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
 const COBRANCA_URL = 'https://api.sicoob.com.br/cobranca-bancaria/v3/boletos';
 
+// Controle de boletos já gerados (em memória)
+const boletosGerados = new Set();
+
 console.log('STARTUP OK');
 
 function getMtlsAgent() {
@@ -99,14 +102,9 @@ function getMtlsAgent() {
 async function getAccessToken() {
   const agent = getMtlsAgent();
   const response = await axios.post(TOKEN_URL,
-    qs.stringify({ 
-      grant_type: 'client_credentials', 
-      client_id: SICOOB_CLIENT_ID,
-      scope: SICOOB_SCOPES,
-    }),
+    qs.stringify({ grant_type: 'client_credentials', client_id: SICOOB_CLIENT_ID, scope: SICOOB_SCOPES }),
     { httpsAgent: agent, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
   );
-  console.log('Token scope:', response.data.scope);
   return response.data.access_token;
 }
 
@@ -114,9 +112,35 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+// Rota: verificar se já foi processado
+app.get('/processado/:idConta', authMiddleware, (req, res) => {
+  const { idConta } = req.params;
+  res.json({ processado: boletosGerados.has(idConta) });
+});
+
+// Rota: marcar como processado
+app.post('/salvar-processado', authMiddleware, (req, res) => {
+  const { idConta, nossoNumero } = req.body;
+  boletosGerados.add(String(idConta));
+  console.log('Marcado como processado:', idConta, 'nossoNumero:', nossoNumero);
+  res.json({ sucesso: true, idConta, nossoNumero });
+});
+
+// Rota: listar processados
+app.get('/processados', authMiddleware, (req, res) => {
+  res.json({ processados: Array.from(boletosGerados) });
+});
+
 app.post('/boleto', authMiddleware, async (req, res) => {
   try {
-    const { numeroSeuPedido, valorOriginal, dataVencimento, nomeDevedor, cpfCnpjDevedor, emailDevedor, descricao } = req.body;
+    const { numeroSeuPedido, valorOriginal, dataVencimento, nomeDevedor, cpfCnpjDevedor, emailDevedor, descricao, idConta } = req.body;
+    
+    // Verifica duplicidade
+    if (idConta && boletosGerados.has(String(idConta))) {
+      console.log('Boleto já gerado para conta:', idConta);
+      return res.json({ sucesso: false, erro: 'Boleto já gerado para esta conta' });
+    }
+
     console.log('Gerando boleto para:', nomeDevedor, 'valor:', valorOriginal);
 
     const token = await getAccessToken();
@@ -124,7 +148,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
     const cpfLimpo = (cpfCnpjDevedor || '').replace(/\D/g, '') || '00000000191';
 
     const payload = {
-      numeroCliente: SICOOB_NUMERO_CLIENTE,
+      numeroCliente: SICOOB_CODIGO_BENEFICIARIO,
       codigoModalidade: 1,
       numeroContaCorrente: SICOOB_NUMERO_CONTA,
       codigoEspecieDocumento: 'DM',
@@ -136,6 +160,10 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       valor: parseFloat(valorOriginal),
       dataVencimento,
       aceite: false,
+      numeroParcela: 1,
+      tipoJurosMora: 3,
+      tipoMulta: 0,
+      tipoDesconto: 0,
       pagador: {
         numeroCpfCnpj: cpfLimpo,
         nome: nomeDevedor || 'Cliente',
@@ -149,15 +177,9 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       mensagensInstrucao: [
         (descricao || 'Pedido ' + numeroSeuPedido).substring(0, 40),
       ],
-      numeroParcela: 1,
-      tipoJurosMora: 3,
-      tipoMulta: 0,
-      tipoDesconto: 0,
       gerarPdf: false,
       numeroContratoCobranca: SICOOB_NUMERO_CONTRATO,
     };
-
-    console.log('Payload:', JSON.stringify(payload));
 
     const response = await axios.post(COBRANCA_URL, payload, {
       httpsAgent: agent,
@@ -168,8 +190,12 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       },
     });
 
-    console.log('Resposta:', JSON.stringify(response.data));
     const boleto = response.data.resultado || response.data;
+    
+    // Marca como processado
+    if (idConta) boletosGerados.add(String(idConta));
+    
+    console.log('Boleto gerado:', boleto.nossoNumero, 'para conta:', idConta);
 
     res.json({
       sucesso: true,
@@ -186,7 +212,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/health', (req, res) => res.json({ status: 'ok', processados: boletosGerados.size }));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Sicoob API rodando na porta ${PORT}`));
