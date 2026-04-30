@@ -8,7 +8,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const SICOOB_CLIENT_ID = '93faa2d0-3bfd-48ed-aa21-f3d6a966a000';
-const SICOOB_CODIGO_BENEFICIARIO = 1319914;
+const SICOOB_NUMERO_CLIENTE = 1319914;
+const SICOOB_NUMERO_CONTRATO = 1261509;
+const SICOOB_NUMERO_CONTA = 707732;
 
 const CERT_PEM = `-----BEGIN CERTIFICATE-----
 MIIHRDCCBSygAwIBAgIIVCImAyRqtu4wDQYJKoZIhvcNAQELBQAwWTELMAkGA1UE
@@ -83,7 +85,7 @@ hTHWFlRQervzreutYE/BT/XF
 const TOKEN_URL = 'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
 const COBRANCA_URL = 'https://api.sicoob.com.br/cobranca-bancaria/v3/boletos';
 
-console.log('STARTUP OK - novo client_id');
+console.log('STARTUP OK');
 
 function getMtlsAgent() {
   return new https.Agent({
@@ -117,21 +119,33 @@ app.post('/boleto', authMiddleware, async (req, res) => {
     const cpfLimpo = (cpfCnpjDevedor || '').replace(/\D/g, '') || '00000000191';
 
     const payload = {
-      numeroContrato: SICOOB_CODIGO_BENEFICIARIO,
-      modalidade: 1,
-      numeroSeuPedido: String(numeroSeuPedido),
+      numeroCliente: SICOOB_NUMERO_CLIENTE,
+      codigoModalidade: 1,
+      numeroContaCorrente: SICOOB_NUMERO_CONTA,
+      codigoEspecieDocumento: 'DM',
       dataEmissao: new Date().toISOString().split('T')[0],
+      seuNumero: String(numeroSeuPedido).substring(0, 18),
+      identificacaoBoletoEmpresa: String(numeroSeuPedido).substring(0, 20),
+      identificacaoEmissaoBoleto: 1,
+      identificacaoDistribuicaoBoleto: 1,
+      valor: parseFloat(valorOriginal),
       dataVencimento,
-      valorNominal: parseFloat(valorOriginal),
+      aceite: false,
       pagador: {
-        tipoPessoa: cpfLimpo.length === 14 ? 'J' : 'F',
-        nomeRazaoSocial: nomeDevedor || 'Cliente',
         numeroCpfCnpj: cpfLimpo,
+        nome: nomeDevedor || 'Cliente',
+        endereco: '',
+        bairro: '',
+        cidade: '',
+        cep: '00000000',
+        uf: 'BA',
         email: emailDevedor || '',
       },
-      mensagensInstrucao: {
-        mensagem1: descricao || 'Pedido ' + numeroSeuPedido,
-      },
+      mensagensInstrucao: [
+        descricao || 'Pedido ' + numeroSeuPedido,
+      ],
+      gerarPdf: false,
+      numeroContratoCobranca: SICOOB_NUMERO_CONTRATO,
     };
 
     console.log('Payload:', JSON.stringify(payload));
@@ -155,7 +169,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       codigoBarras: boleto.codigoBarras || boleto.numeroCodigoBarras,
       urlBoleto: boleto.urlBoleto || null,
       dataVencimento: boleto.dataVencimento,
-      valor: boleto.valorNominal || boleto.valorOriginal,
+      valor: boleto.valor || boleto.valorNominal,
     });
   } catch (err) {
     console.error('Erro:', JSON.stringify(err.response?.data || err.message));
