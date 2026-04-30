@@ -1,10 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const https = require('https');
-const fs = require('fs');
 const qs = require('querystring');
-
-
 
 const app = express();
 app.use(express.json());
@@ -14,7 +11,6 @@ const SICOOB_CLIENT_ID = process.env.SICOOB_CLIENT_ID;
 const SICOOB_CERT_PEM  = process.env.SICOOB_CERT_PEM;
 const SICOOB_NUMERO_COOPERATIVA = process.env.SICOOB_NUMERO_COOPERATIVA || '3055';
 const SICOOB_CODIGO_BENEFICIARIO = process.env.SICOOB_CODIGO_BENEFICIARIO || '1319914';
-const API_SECRET_KEY   = process.env.API_SECRET_KEY;
 
 const TOKEN_URL = 'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
 const COBRANCA_URL = 'https://api.sicoob.com.br/cobranca-bancaria/v2/boletos';
@@ -39,10 +35,23 @@ function authMiddleware(req, res, next) {
 
 app.post('/boleto', authMiddleware, async (req, res) => {
   try {
-    const { numeroSeuPedido, valorOriginal, dataVencimento, nomeDevedor, cpfCnpjDevedor, emailDevedor, descricao } = req.body;
+    const {
+      numeroSeuPedido,
+      valorOriginal,
+      dataVencimento,
+      nomeDevedor,
+      cpfCnpjDevedor,
+      emailDevedor,
+      descricao,
+    } = req.body;
+
+    console.log('Gerando boleto para:', nomeDevedor, 'valor:', valorOriginal);
+
     const token = await getAccessToken();
     const agent = getMtlsAgent();
-    const cpfLimpo = (cpfCnpjDevedor || '').replace(/\D/g, '');
+
+    const cpfLimpo = (cpfCnpjDevedor || '').replace(/\D/g, '') || '00000000000';
+
     const payload = {
       numeroCooperativa: parseInt(SICOOB_NUMERO_COOPERATIVA),
       numeroBeneficiario: parseInt(SICOOB_CODIGO_BENEFICIARIO),
@@ -53,18 +62,24 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       dataVencimento,
       valorOriginal: parseFloat(valorOriginal),
       pagador: {
-        tipoPessoa: cpfLimpo.length === 11 ? 1 : 2,
-        nome: nomeDevedor,
-        cpfCnpj: cpfLimpo || '00000000000',
+        tipoPessoa: cpfLimpo.length === 14 ? 2 : 1,
+        nome: nomeDevedor || 'Cliente',
+        cpfCnpj: cpfLimpo,
         email: emailDevedor || '',
       },
-      mensagensInstrucao: { mensagem1: descricao || 'Pedido ' + numeroSeuPedido },
+      mensagensInstrucao: {
+        mensagem1: descricao || 'Pagamento referente ao pedido ' + numeroSeuPedido,
+      },
     };
+
     const response = await axios.post(COBRANCA_URL, payload, {
       httpsAgent: agent,
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     });
+
     const boleto = response.data.resultado;
+    console.log('Boleto gerado com sucesso:', boleto.nossoNumero);
+
     res.json({
       sucesso: true,
       nossoNumero: boleto.nossoNumero,
@@ -74,9 +89,13 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       dataVencimento: boleto.dataVencimento,
       valor: boleto.valorOriginal,
     });
+
   } catch (err) {
     console.error('Erro ao gerar boleto:', err.response?.data || err.message);
-    res.status(500).json({ sucesso: false, erro: err.response?.data || err.message });
+    res.status(500).json({
+      sucesso: false,
+      erro: err.response?.data || err.message,
+    });
   }
 });
 
