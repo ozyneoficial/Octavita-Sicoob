@@ -151,7 +151,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       ],
       numeroParcela: 1,
       tipoJurosMora: 3,
-      tipoMulta: 3,
+      tipoMulta: 0,
       tipoDesconto: 0,
       gerarPdf: false,
       numeroContratoCobranca: SICOOB_NUMERO_CONTRATO,
