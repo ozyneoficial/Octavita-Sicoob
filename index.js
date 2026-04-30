@@ -150,6 +150,9 @@ app.post('/boleto', authMiddleware, async (req, res) => {
         descricao || 'Pedido ' + numeroSeuPedido,
       ],
       numeroParcela: 1,
+      tipoJurosMora: 3,
+      tipoMulta: 3,
+      tipoDesconto: 0,
       gerarPdf: false,
       numeroContratoCobranca: SICOOB_NUMERO_CONTRATO,
     };
