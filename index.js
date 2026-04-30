@@ -96,9 +96,10 @@ function getMtlsAgent() {
 async function getAccessToken() {
   const agent = getMtlsAgent();
   const response = await axios.post(TOKEN_URL,
-    qs.stringify({ grant_type: 'client_credentials', client_id: SICOOB_CLIENT_ID }),
+    qs.stringify({ grant_type: 'client_credentials', client_id: SICOOB_CLIENT_ID, scope: 'cobranca_bancaria.boleto.inclusao' }),
     { httpsAgent: agent, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
   );
+  console.log('Token scope:', response.data.scope);
   return response.data.access_token;
 }
 
