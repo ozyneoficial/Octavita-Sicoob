@@ -87,6 +87,7 @@ hTHWFlRQervzreutYE/BT/XF
 const TOKEN_URL = 'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
 const COBRANCA_URL = 'https://api.sicoob.com.br/cobranca-bancaria/v3/boletos';
 
+// Controle de duplicidade por numeroDoc
 const boletosGerados = new Set();
 
 console.log('STARTUP OK');
@@ -108,14 +109,9 @@ function authMiddleware(req, res, next) { next(); }
 
 function getDataBrasilia() {
   const now = new Date();
-  const offset = -3 * 60;
-  const brasilia = new Date(now.getTime() + offset * 60 * 1000);
+  const brasilia = new Date(now.getTime() + (-3 * 60 * 60 * 1000));
   return brasilia.toISOString().split('T')[0];
 }
-
-app.get('/processado/:idConta', authMiddleware, (req, res) => {
-  res.json({ processado: boletosGerados.has(req.params.idConta) });
-});
 
 app.post('/salvar-processado', authMiddleware, (req, res) => {
   const { idConta, nossoNumero } = req.body;
@@ -130,14 +126,16 @@ app.get('/processados', authMiddleware, (req, res) => {
 
 app.post('/boleto', authMiddleware, async (req, res) => {
   try {
-    const { numeroSeuPedido, valorOriginal, dataVencimento, nomeDevedor, cpfCnpjDevedor, emailDevedor, descricao, idConta } = req.body;
+    const { numeroSeuPedido, valorOriginal, dataVencimento, nomeDevedor, cpfCnpjDevedor, emailDevedor, descricao } = req.body;
 
-    if (idConta && boletosGerados.has(String(idConta))) {
-      console.log('Boleto já gerado para conta:', idConta);
-      return res.json({ sucesso: false, erro: 'Boleto já gerado para esta conta' });
+    // Controle de duplicidade pelo numeroDoc
+    const chave = String(numeroSeuPedido);
+    if (boletosGerados.has(chave)) {
+      console.log('Boleto já gerado para doc:', chave);
+      return res.json({ sucesso: false, erro: 'Boleto já gerado para este documento' });
     }
 
-    console.log('Gerando boleto para:', nomeDevedor, 'valor:', valorOriginal, 'conta:', idConta);
+    console.log('Gerando boleto para:', nomeDevedor, 'doc:', chave);
 
     const token = await getAccessToken();
     const agent = getMtlsAgent();
@@ -149,8 +147,8 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       numeroContaCorrente: SICOOB_NUMERO_CONTA,
       codigoEspecieDocumento: 'DM',
       dataEmissao: getDataBrasilia(),
-      seuNumero: String(numeroSeuPedido).substring(0, 18),
-      identificacaoBoletoEmpresa: String(numeroSeuPedido).substring(0, 20),
+      seuNumero: chave.substring(0, 18),
+      identificacaoBoletoEmpresa: chave.substring(0, 20),
       identificacaoEmissaoBoleto: 1,
       identificacaoDistribuicaoBoleto: 1,
       valor: parseFloat(valorOriginal),
@@ -170,7 +168,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
         uf: 'BA',
         email: emailDevedor || '',
       },
-      mensagensInstrucao: [(descricao || 'Pedido ' + numeroSeuPedido).substring(0, 40)],
+      mensagensInstrucao: [(descricao || 'Pedido ' + chave).substring(0, 40)],
       gerarPdf: false,
       numeroContratoCobranca: SICOOB_NUMERO_CONTRATO,
     };
@@ -181,8 +179,8 @@ app.post('/boleto', authMiddleware, async (req, res) => {
     });
 
     const boleto = response.data.resultado || response.data;
-    if (idConta) boletosGerados.add(String(idConta));
-    console.log('Boleto gerado:', boleto.nossoNumero, 'para conta:', idConta);
+    boletosGerados.add(chave);
+    console.log('Boleto gerado:', boleto.nossoNumero, 'doc:', chave);
 
     res.json({
       sucesso: true,
