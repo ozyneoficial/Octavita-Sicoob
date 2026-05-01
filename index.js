@@ -54,6 +54,7 @@ zGCvZVhZOgob+Ir6iVBtdKsM10nslRcmND0RrmXCf3hwQqMyUqrnkBiC1g243+ur
 WSZqWEJpec9XWx9SDiswg2Xp8NRKCG3QVgLR909/feZbXhoNHmkOl8SEb5rDmQ3n
 K+r+D1gDVlSo9V8+TGiWinMf74QNWtkWED/oP1ne0XmSugZmHeOZQg==
 -----END CERTIFICATE-----`;
+
 const KEY_PEM = `-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDNf08PESCy/5ns
 RUU3woucePSKKM0BoWx/k6n27tOo5pWuag4yhoO/Bg4dAg8RHuGhEmccSEXdbZaX
@@ -86,17 +87,12 @@ hTHWFlRQervzreutYE/BT/XF
 const TOKEN_URL = 'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
 const COBRANCA_URL = 'https://api.sicoob.com.br/cobranca-bancaria/v3/boletos';
 
-// Controle de boletos já gerados (em memória)
 const boletosGerados = new Set();
 
 console.log('STARTUP OK');
 
 function getMtlsAgent() {
-  return new https.Agent({
-    cert: CERT_PEM,
-    key: KEY_PEM,
-    rejectUnauthorized: true,
-  });
+  return new https.Agent({ cert: CERT_PEM, key: KEY_PEM, rejectUnauthorized: true });
 }
 
 async function getAccessToken() {
@@ -108,17 +104,19 @@ async function getAccessToken() {
   return response.data.access_token;
 }
 
-function authMiddleware(req, res, next) {
-  next();
+function authMiddleware(req, res, next) { next(); }
+
+function getDataBrasilia() {
+  const now = new Date();
+  const offset = -3 * 60;
+  const brasilia = new Date(now.getTime() + offset * 60 * 1000);
+  return brasilia.toISOString().split('T')[0];
 }
 
-// Rota: verificar se já foi processado
 app.get('/processado/:idConta', authMiddleware, (req, res) => {
-  const { idConta } = req.params;
-  res.json({ processado: boletosGerados.has(idConta) });
+  res.json({ processado: boletosGerados.has(req.params.idConta) });
 });
 
-// Rota: marcar como processado
 app.post('/salvar-processado', authMiddleware, (req, res) => {
   const { idConta, nossoNumero } = req.body;
   boletosGerados.add(String(idConta));
@@ -126,7 +124,6 @@ app.post('/salvar-processado', authMiddleware, (req, res) => {
   res.json({ sucesso: true, idConta, nossoNumero });
 });
 
-// Rota: listar processados
 app.get('/processados', authMiddleware, (req, res) => {
   res.json({ processados: Array.from(boletosGerados) });
 });
@@ -134,14 +131,13 @@ app.get('/processados', authMiddleware, (req, res) => {
 app.post('/boleto', authMiddleware, async (req, res) => {
   try {
     const { numeroSeuPedido, valorOriginal, dataVencimento, nomeDevedor, cpfCnpjDevedor, emailDevedor, descricao, idConta } = req.body;
-    
-    // Verifica duplicidade
+
     if (idConta && boletosGerados.has(String(idConta))) {
       console.log('Boleto já gerado para conta:', idConta);
       return res.json({ sucesso: false, erro: 'Boleto já gerado para esta conta' });
     }
 
-    console.log('Gerando boleto para:', nomeDevedor, 'valor:', valorOriginal);
+    console.log('Gerando boleto para:', nomeDevedor, 'valor:', valorOriginal, 'conta:', idConta);
 
     const token = await getAccessToken();
     const agent = getMtlsAgent();
@@ -152,7 +148,7 @@ app.post('/boleto', authMiddleware, async (req, res) => {
       codigoModalidade: 1,
       numeroContaCorrente: SICOOB_NUMERO_CONTA,
       codigoEspecieDocumento: 'DM',
-      dataEmissao: new Date().toISOString().split('T')[0],
+      dataEmissao: getDataBrasilia(),
       seuNumero: String(numeroSeuPedido).substring(0, 18),
       identificacaoBoletoEmpresa: String(numeroSeuPedido).substring(0, 20),
       identificacaoEmissaoBoleto: 1,
@@ -174,27 +170,18 @@ app.post('/boleto', authMiddleware, async (req, res) => {
         uf: 'BA',
         email: emailDevedor || '',
       },
-      mensagensInstrucao: [
-        (descricao || 'Pedido ' + numeroSeuPedido).substring(0, 40),
-      ],
+      mensagensInstrucao: [(descricao || 'Pedido ' + numeroSeuPedido).substring(0, 40)],
       gerarPdf: false,
       numeroContratoCobranca: SICOOB_NUMERO_CONTRATO,
     };
 
     const response = await axios.post(COBRANCA_URL, payload, {
       httpsAgent: agent,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'client_id': SICOOB_CLIENT_ID,
-      },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'client_id': SICOOB_CLIENT_ID },
     });
 
     const boleto = response.data.resultado || response.data;
-    
-    // Marca como processado
     if (idConta) boletosGerados.add(String(idConta));
-    
     console.log('Boleto gerado:', boleto.nossoNumero, 'para conta:', idConta);
 
     res.json({
